@@ -389,7 +389,6 @@ int main(int argc, char *argv[])
                     do
                     {
                         printf("%s usa pedina: %c\nSCEGLI COLONNA: ", argv[1], (giocatore == 1) ? dimensione[2] : dimensione[3]);
-                        scanf("%i", &chosenColumn);
                     } while (!(scanf("\n%d", &chosenColumn)));
 
                     mosse++;
