@@ -189,8 +189,11 @@ int main(int argc, char *argv[])
 
     };
 
+    // Set variabili relative alla vittoria
     *vittoria = 0;
     int checkWinBro = 0;
+
+    // Funzione principale di gioco
     while (1)
     {
         int mosse = 10 * 2; // simuliamo 10 mosse
