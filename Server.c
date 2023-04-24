@@ -110,16 +110,23 @@ int main(int argc, char *argv[])
     // Set pid server nella prima cella dell'array in shared
     array_pid[0] = getpid();
 
-    //  dimensioni tabellone con argomenti passati da bash
-    dimensione[0] = atoi(argv[1]); // righe
-    RIGHE = dimensione[0];
-    dimensione[1] = atoi(argv[2]); // colonne
-    COLONNE = dimensione[1];
-    // inserisco nella stessa memoria le pedine scelte
-    dimensione[2] = (int)argv[3][0]; // prima pedina
-    dimensione[3] = (int)argv[4][0]; // seconda pedina
+    // Set dimensioni tabellone in shared
 
-    // genero array per i nomi dei giocatori
+    // Righe
+    dimensione[0] = atoi(argv[1]);
+    RIGHE = dimensione[0];
+
+    // Colonne
+    dimensione[1] = atoi(argv[2]);
+    COLONNE = dimensione[1];
+
+    // Sfrutto stesso array in memoria condvisa per salvare le due pedine
+
+    // Prima pedina
+    dimensione[2] = (int)argv[3][0];
+
+    // Seconda pedina
+    dimensione[3] = (int)argv[4][0];
 
     // Genero key per segmento di memoria condivisa - TABELLONE
     key_t key_tabellone = ftok(path, 6);
