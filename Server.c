@@ -85,25 +85,32 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    // DEVO CONTROLLARE CHE MI DIA PEDINE SOLO CON 1 CHAR, FACCIO DOPO
+    // Controllo relativo alle pedine
     if (argv[3][1] != '\0' || argv[4][1] != '\0' || argv[3][0] == argv[4][0])
     {
         printf("Errore nell'inserimento delle pedine");
         return -1;
     }
+
+    // Salvo le pedine
     pown1 = argv[3][0];
     pown2 = argv[4][0];
 
+    // Set dei semafori
     set_ipcs();
+
+    // Set della memoria in shared
     set_shmem();
 
+    // Struct per le operazioni wait e signal utilizzate dai vari semafori
     struct sembuf wait_op = {0, -1, 0};
     struct sembuf wait2_op = {0, -2, 0};
     struct sembuf signal_op = {0, 1, 0};
 
+    // Set pid server nella prima cella dell'array in shared
     array_pid[0] = getpid();
 
-    // setto dimensioni tabellone con argomenti passati da bash
+    //  dimensioni tabellone con argomenti passati da bash
     dimensione[0] = atoi(argv[1]); // righe
     RIGHE = dimensione[0];
     dimensione[1] = atoi(argv[2]); // colonne
