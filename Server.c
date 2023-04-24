@@ -130,6 +130,7 @@ int main(int argc, char *argv[])
 
     // Genero key per segmento di memoria condivisa - TABELLONE
     key_t key_tabellone = ftok(path, 6);
+
     // Genero segmento di memoria condivisa - TABELLONE
     size_tabellone = sizeof(int) * RIGHE * RIGHE;
     shmid_tabellone = shmget(key_tabellone, size_tabellone, IPC_CREAT | S_IRUSR | S_IWUSR);
@@ -141,15 +142,18 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    // Pulizia del tabellone di gioco
     reset_tabellone(tabellone, size_tabellone);
 
     printf("Campo di gioco impostato a %s x %s\n", argv[1], argv[2]);
 
-    // aspetto che ci siano 2 client alive
+    // Aspetto che ci siano due giocatori nella stanza
     printf("Attendo gicatori... \n");
 
+    // Wait x2 per l'attesa dei 2 client
     if (semop(sem_id2, &wait2_op, 1) == -1)
     {
+        // Errno relativo al interrupt della CTRL-C (Interrupted system call)
         if (errno == 4)
         {
             if (semop(sem_id2, &wait2_op, 1) == -1)
@@ -157,7 +161,7 @@ int main(int argc, char *argv[])
                 printf("Errore wait secondo semaforo\n");
                 exit(1);
             }
-        } // per colpa della ctrlc
+        }
         else
         {
             printf("Errore wait secondo semaforo\n");
@@ -165,10 +169,11 @@ int main(int argc, char *argv[])
         }
     }
 
+    // Qua Server arriva SSE si sono presentati due Client
     printf("\nRilevati 2 client\n");
 
-    // ora i client sono bloccati mutex in attesa di essere numerati
-    // ne sblocco uno
+    // I Client sono bloccati in semaforo attesa per evento (nostro nominato mutex) in attesa di essere numerati
+    // Ne sblocco uno
     *value = 0;
     printf("\n\n\nPuo iniziare la partita\n\n");
     if (semop(sem_mutex, &signal_op, 1) == -1)
@@ -177,6 +182,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
+    // Struct per le operazioni signal dei nostri player
     struct sembuf signal_players[2] = {
         {0, 1, 0},
         {1, 1, 0}
