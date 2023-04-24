@@ -68,28 +68,28 @@ int main(int argc, char *argv[])
     if (argc != 5)
     {
         printf("Numero parametri errati!\n");
-        return -1;
+        return EXIT_FAILURE;
     }
 
     // Controllo che i primi due parametri siano numeri
     if (!checkInput(argv[1]) || !checkInput(argv[2]))
     {
         printf("Parametri tabellone errati!\n");
-        return -1;
+        return EXIT_FAILURE;
     }
 
     // Restrizione al campo minimo di 5x5
     if (!(atoi(argv[1]) >= 5 && atoi(argv[2]) >= 5))
     {
         printf("Dimensione tabellone troppo piccole!\n");
-        return -1;
+        return EXIT_FAILURE;
     }
 
     // Controllo relativo alle pedine
     if (argv[3][1] != '\0' || argv[4][1] != '\0' || argv[3][0] == argv[4][0])
     {
         printf("Errore nell'inserimento delle pedine");
-        return -1;
+        return EXIT_FAILURE;
     }
 
     // Salvo le pedine
@@ -159,13 +159,13 @@ int main(int argc, char *argv[])
             if (semop(sem_id2, &wait2_op, 1) == -1)
             {
                 printf("Errore wait secondo semaforo\n");
-                exit(1);
+                exit(EXIT_FAILURE);
             }
         }
         else
         {
             printf("Errore wait secondo semaforo\n");
-            exit(1);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
     if (semop(sem_mutex, &signal_op, 1) == -1)
     {
         printf("Errore signal del mutex");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // Struct per le operazioni signal dei nostri player
@@ -196,45 +196,47 @@ int main(int argc, char *argv[])
     // Funzione principale di gioco
     while (1)
     {
-        int mosse = 10 * 2; // simuliamo 10 mosse
+        // Variabile per set turno player
         int turn = 0;
+
+        // Reset vittoria
         *vittoria = 0;
 
-        // reset del tabellone
+        // Reset tabellone
         reset_tabellone(tabellone, size_tabellone);
 
+        // Finche vittoria non raggiunta
         while (*vittoria == 0)
         {
             printf("Tocca a Giocatore %i - (%s)\n", (turn % 2) + 1, (((turn % 2) + 1) == 1) ? player1 : player2);
-            // printf("DUE PLAYER: %s & %s\n\n\n",player1,player2);
 
-            // sblocco giocatore 1 o 2
+            // Sblocco giocatore 1-2
             semop(sem_array, &signal_players[turn % 2], 1);
-            // passo il turno
 
-            // aspetto  giocata giocatore
+            // Aspetto giocata giocatore 1-2
             printf("Attendo giocata ...\n\n");
 
             if (semop(sem_id2, &wait_op, 1) == -1)
             {
+                // Errno relativo al interrupt della CTRL-C (Interrupted system call)
                 if (errno == 4)
                 {
 
                     if (semop(sem_id2, &wait_op, 1) == -1)
                     {
                         printf("Errore wait secondo semaforo\n");
-                        exit(1);
+                        exit(EXIT_FAILURE);
                     }
 
-                } // per colpa della ctrlc
+                } 
                 else
                 {
                     printf("Errore wait secondo semaforo\n");
-                    exit(1);
+                    exit(EXIT_FAILURE);
                 }
             }
 
-            // controllo esito tabellone
+            // Controllo esito tabellone
             checkWinBro = checkWin(tabellone, (turn % 2) == 0 ? pown1 : pown2);
 
             if (checkWinBro == 1)
@@ -249,14 +251,17 @@ int main(int argc, char *argv[])
                 checkWinBro = 1;
             }
 
+            // Set variabile vittoria per eventuale uscita dal while-loop
             *vittoria = checkWinBro;
+
+            // Sblocco altro player 
             semop(sem_array, &signal_players[turn % 2], 1);
 
-            turn++; // cambio turno
-            mosse--;
+            // Cambio turno
+            turn++; 
         }
 
-        // questo serve per sbloccare player che non ha vinto ma che era rimasto bloccato
+        // Questo serve per sbloccare player che non ha vinto ma che era rimasto bloccato
         if (*vittoria == 1)
         {
             semop(sem_array, &signal_players[turn % 2], 1);
@@ -264,22 +269,22 @@ int main(int argc, char *argv[])
         printf("partita terminata\n\n\n");
         printf("Setto la stanza per nuovo match....\n\n");
 
-        // mi metto in attesa che i player siano pronti
+        // Mi metto in attesa che i player siano pronti per eventuale rigioco
         if (semop(sem_id2, &wait2_op, 1) == -1)
         {
-
+            // Errno relativo al interrupt della CTRL-C (Interrupted system call)
             if (errno == 4)
             {
                 if (semop(sem_id2, &wait2_op, 1) == -1)
                 {
                     printf("Errore wait secondo semaforo\n");
-                    exit(1);
+                    exit(EXIT_FAILURE);
                 }
-            } // per colpa della ctrlc
+            } 
             else
             {
                 printf("Errore wait secondo semaforo\n");
-                exit(1);
+                exit(EXIT_FAILURE);
             }
         }
     }
@@ -295,7 +300,7 @@ int checkPareggio(int *matrix)
 {
 
     int counter = 0;
-    int simb_tot;
+    int full_board;
     for (int i = 0; i < RIGHE; i++)
     {
         for (int j = 0; j < COLONNE; j++)
@@ -307,8 +312,8 @@ int checkPareggio(int *matrix)
         }
     }
 
-    simb_tot = RIGHE * COLONNE;
-    if (simb_tot == counter && !checkWin(matrix, dimensione[2]) && !checkWin(matrix, dimensione[3]))
+    full_board = RIGHE * COLONNE;
+    if (full_board == counter && !checkWin(matrix, dimensione[2]) && !checkWin(matrix, dimensione[3]))
     {
         return 1;
     }
@@ -321,8 +326,7 @@ int checkPareggio(int *matrix)
 // Controllo partita stato di vittoria
 int checkWin(int *matrix, int player)
 {
-    // printf("suca0\n");
-    //  qui sceglieremo quale valore player controllare
+
     // conta le pedina di fila
     int counter = 0;
 
@@ -330,49 +334,61 @@ int checkWin(int *matrix, int player)
     for (int righe = RIGHE - 1; righe >= 0; righe--)
     {
         counter == 0;
+
         // controllo se le pedine gia prese e le pedine probabili rimanenti sono maggiori di 4
         for (int clm = 0; clm < COLONNE && (counter + (COLONNE - clm) >= 4); clm++)
         {
             if (matrix[convertPos(righe, clm)] == player)
             {
-                counter++; // aumento la streak
+                // aumento la streak
+                counter++; 
             }
             else
-            {
-                counter = 0; // resetto la streak
+            {   
+                // resetto la streak
+                counter = 0; 
             }
+
             // guardo se ho vinto
             if (counter == 4)
+            {
                 return 1;
+            }
+                
         }
     }
-    // printf("suca1\n");
+
     //  CONTROLLO VERTICALE - colonne
     for (int clm = 0; clm < COLONNE; clm++)
     {
         counter == 0;
+
         // controllo se le pedine gia prese e le pedine probabili rimanenti sono maggiori di 4
-        //&& (counter + (row + 1) >= 4)
         for (int row = RIGHE - 1; row >= 0; row--)
         {
             if (matrix[convertPos(row, clm)] == player)
             {
-                counter++; // aumento la streak
+                // aumento la streak
+                counter++; 
             }
             else
             {
-                counter = 0; // resetto la streak
+                // resetto la streak
+                counter = 0; 
             }
             // guardo se ho vinto
             if (counter == 4)
+            {
                 return 1;
+            }
+                
         }
     }
-    // printf("suca2\n");
+
     //  CONTROLLO DIAGONALE SX-DX DAL BASSO
     for (int righe = RIGHE - 1; righe + 1 >= 4; righe--)
     {
-        // ciclo le colonne
+        // Ciclo le colonne
         for (int clm = 0; COLONNE - clm >= 4; clm++)
         {
 
@@ -384,22 +400,26 @@ int checkWin(int *matrix, int player)
             {
                 if (matrix[convertPos(righe2, clm2)] != player)
                 {
-                    counter = 0; // azzero la streak
+                    // azzero la streak
+                    counter = 0; 
                 }
                 else
                 {
-                    counter++; // aumento la streak
+                    // aumento la streak
+                    counter++; 
                 }
+                // guardo se ho vinto
                 if (counter == 4)
-                    return 1; // dico di uscire perchè ho trovato la streak
-
+                {
+                    return 1;
+                }
                 // aumento in diagonale gli indici da controllare
                 righe2--;
                 clm2++;
             }
         }
     }
-    // printf("suca3\n");
+
     //  CONTROLLO DIAGONALE DX-SX DAL BASSO
     for (int righe = RIGHE - 1; righe + 1 >= 4; righe--)
     {
@@ -415,15 +435,18 @@ int checkWin(int *matrix, int player)
             {
                 if (matrix[convertPos(righe2, clm2)] != player)
                 {
-                    counter = 0; // azzero la streak
+                    // azzero la streak
+                    counter = 0; 
                 }
                 else
                 {
-                    counter++; // aumento la streak
+                    // aumento la streak
+                    counter++; 
                 }
                 if (counter == 4)
+                {
                     return 1;
-
+                }
                 // aumento in diagonale gli indici da controllare
                 righe2--;
                 clm2--;
@@ -434,11 +457,10 @@ int checkWin(int *matrix, int player)
     return 0; // nessuna vittoria
 }
 
-// converto da posizione riga/colonna ad indice array monodimensionale
+// Converto da posizione riga/colonna ad indice array monodimensionale
 // NB: ragioniamo dal basso
 int convertPos(int row, int column)
 {
-    // printf("il valore è: %i\n", row + (COLONNE * (column)));
     return column + (COLONNE * (row));
 }
 
@@ -451,7 +473,7 @@ void reset_tabellone(int *tabellone, int size_tabellone)
     }
 }
 
-// check inut intero valido
+// Check inut intero valido
 int checkInput(char *input)
 {
     int pos = 0;
@@ -464,26 +486,28 @@ int checkInput(char *input)
     return 1;
 }
 
+// Funzione per settare i vari handler dei segnali
 void set_signal(void)
 {
     // gestisco i segnali, qui il ctrl+c
     if (signal(SIGINT, ctrlcHandler) == SIG_ERR)
     {
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
 
     // gestisco i segnali, qui il ctrl+c
     if (signal(SIGHUP, ctrlcHandler) == SIG_ERR)
     {
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
 
     if (signal(SIGUSR1, handlerVittoriaTavolino) == SIG_ERR)
     {
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
 }
 
+// Funzione per settare semafori
 void set_ipcs(void)
 {
     union semun
@@ -511,28 +535,28 @@ void set_ipcs(void)
     if (key == -1 || key_sem == -1 || key_sem2 == -1 || key_sem_array == -1 || key_sem_mutex == -1)
     {
         perror("Errore nella generazione della chiave");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // creazione del mutex
     if ((sem_mutex = semget(key_sem_mutex, 1, 0666 | IPC_CREAT)) == -1)
     {
         printf("Errore creazione Mutex");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // inizializzazione del mutex
     if (semctl(sem_mutex, 0, SETVAL, 0) == -1)
     {
         printf("Errore inizializzazione Mutex");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // creazione del array di semafori
     if ((sem_array = semget(key_sem_array, 2, 0666 | IPC_CREAT)) == -1)
     {
         printf("Errore creazione Array di semafori ");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     unsigned short values[2] = {0, 0};
@@ -543,38 +567,39 @@ void set_ipcs(void)
     if (semctl(sem_array, 0, SETALL, arg) == -1)
     {
         printf("Errore inizializzazione Array di semafori");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // creazione del semaforo
     if ((sem_id = semget(key_sem, 1, 0666 | IPC_CREAT)) == -1)
     {
         printf("Errore creazione primo semaforo");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // inizializzazione del semaforo a 2 --> quando vale zero e quindi sono passati i 2 player sblocca semaforo 2
     if (semctl(sem_id, 0, SETVAL, 2) == -1)
     {
         printf("Errore inizializzazione primo semaforo");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // creazione del semaforo
     if ((sem_id2 = semget(key_sem2, 1, 0666 | IPC_CREAT)) == -1)
     {
         printf("Errore creazione secondo semaforo");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // inizializzazione del semaforo a 0
     if (semctl(sem_id2, 0, SETVAL, 0) == -1)
     {
         printf("Errore inizializzazione secondo semaforo");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 }
 
+// Funzioni per settare shared memory
 void set_shmem(void)
 {
     // Genero key per segmento di memoria condivisa - VALUE
@@ -603,7 +628,7 @@ void set_shmem(void)
     if (key_arrayNomi1 == -1 || key_arrayNomi == -1 || key_tabellone == -1 || key_vittoria == -1 || key_dimensione == -1 || key_pid == -1)
     {
         perror("Errore nella generazione della chiave");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // Genero segmento di memoria condivisa - ARRAY PID
@@ -664,7 +689,7 @@ void set_shmem(void)
     }
 }
 
-// chiusara memoria confivisa e  semafori
+// Chiusara memoria condivisa e semafori
 void clear_all(void)
 {
     reset_tabellone(tabellone, size_tabellone);
@@ -672,28 +697,28 @@ void clear_all(void)
     if (shmdt(value) == -1)
     {
         printf("Errore detach memory value");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     //  detach dalla shared memory tabellone
     if (shmdt(tabellone) == -1)
     {
         printf("Errore detach memory tabellone");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     //  detach dalla shared memory variabile vittoria
     if (shmdt(vittoria) == -1)
     {
         printf("Errore detach memory tabellone");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     //  detach dalla shared memory dimensione
     if (shmdt(dimensione) == -1)
     {
         printf("Errore detach memory value");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     //  detach dalla shared memory pid
@@ -701,7 +726,7 @@ void clear_all(void)
     if (shmdt(array_pid) == -1)
     {
         printf("Errore detach memory value");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // rimozione della shared memory
@@ -709,7 +734,7 @@ void clear_all(void)
     if (shmctl(shmid, IPC_RMID, NULL) == -1)
     {
         printf("Errore rimozione shared shmid");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // rimozione della shared memory
@@ -717,7 +742,7 @@ void clear_all(void)
     if (shmctl(shmid_tabellone, IPC_RMID, NULL) == -1)
     {
         printf("Errore rimozione shared shmid_tabellone");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // rimozione della shared memory
@@ -725,7 +750,7 @@ void clear_all(void)
     if (shmctl(shmid_dimensione, IPC_RMID, NULL) == -1)
     {
         printf("Errore rimozione shared shmid");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // rimozione della shared memory
@@ -733,35 +758,35 @@ void clear_all(void)
     if (shmctl(shmid_pid, IPC_RMID, NULL) == -1)
     {
         printf("Errore rimozione shared shmid_pid");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // rimozione del semaforo
     if (semctl(sem_id, 0, IPC_RMID, 0) == -1)
     {
         printf("Errore rimozione primo semaforo");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // rimozione del semaforo2
     if (semctl(sem_id2, 0, IPC_RMID, 0) == -1)
     {
         printf("Errore rimozione secondo semaforo");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // rimozione del array di semafori
     if (semctl(sem_array, 0, IPC_RMID, 0) == -1)
     {
         printf("Errore rimozione array di semafori");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // rimozione di semaforo mutex
     if (semctl(sem_mutex, 0, IPC_RMID, 0) == -1)
     {
         printf("Errore rimozione mutex");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // rimozione della shared memory
@@ -769,7 +794,7 @@ void clear_all(void)
     if (shmctl(shmid_vittoria, IPC_RMID, NULL) == -1)
     {
         printf("Errore rimozione shared shmid_vittoria");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // rimozione della shared memory
@@ -777,7 +802,7 @@ void clear_all(void)
     if (shmctl(shmid_player1, IPC_RMID, NULL) == -1)
     {
         printf("Errore rimozione shared player1");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // rimozione della shared memory
@@ -785,10 +810,11 @@ void clear_all(void)
     if (shmctl(shmid_player2, IPC_RMID, NULL) == -1)
     {
         printf("Errore rimozione shared player2");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 }
 
+// CTRL-C handler
 void ctrlcHandler(int sig)
 {
 
@@ -814,15 +840,14 @@ void ctrlcHandler(int sig)
         }
 
         clear_all();
-        exit(1);
+        exit(EXIT_SUCCESS);
     }
-    // DOBBIAMO INFORMARE I CLIENT CHE SERVER TERMINATO, ci servono i loro pid probabilmente
 }
 
-// se un utente che si era seduto al tavolo quitta, il server fa vincere l'altro utente a tavolino ed implode
+// Handler vittoria a tavolino (SIGUSER ricevuto)
 void handlerVittoriaTavolino(int sig)
 {
-
+    // Se un utente che si era seduto al tavolo quitta, il server fa vincere l'altro utente a tavolino ed implode
     if (array_pid[1] && array_pid[2])
     {
         kill(array_pid[1], SIGUSR1);
@@ -843,9 +868,9 @@ void handlerVittoriaTavolino(int sig)
         }
         kill(pidVincente, SIGUSR1);
         printf("\nServer terminato! (Vittoria tavolino) \n");
-        // printf("Padre%i f1%i f2%i vincitore%i\n",array_pid[0],array_pid[1],array_pid[2],pidVincente);
+
     }
-    // SERVE UN SEMAFORO PER FERMARE IL SERVER+
+
     clear_all();
-    exit(1);
+    exit(EXIT_SUCCESS);
 }
