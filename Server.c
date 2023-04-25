@@ -1,6 +1,6 @@
 /// @file Server.c
 /// @brief Server gestore del match.
-/// @author emmekappaDELL
+/// @author Alex, Michele, Tommaso
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,7 +26,6 @@ void set_signal(void);
 void set_ipcs(void);
 void set_shmem(void);
 void clear_all(void);
-int checkPareggio(int *);
 
 // Variabili globali inerenti al tabellone di gioco
 int RIGHE = 0;
@@ -132,7 +131,7 @@ int main(int argc, char *argv[])
     key_t key_tabellone = ftok(path, 6);
 
     // Genero segmento di memoria condivisa - TABELLONE
-    size_tabellone = sizeof(int) * RIGHE * RIGHE;
+    size_tabellone = sizeof(int) * RIGHE * COLONNE;
     shmid_tabellone = shmget(key_tabellone, size_tabellone, IPC_CREAT | S_IRUSR | S_IWUSR);
     tabellone = (int *)shmat(shmid_tabellone, NULL, 0);
 
@@ -199,6 +198,9 @@ int main(int argc, char *argv[])
         // Variabile per set turno player
         int turn = 0;
 
+        // Variabile per conteggio pedine inserite
+        int count_par = 1;
+
         // Reset vittoria
         *vittoria = 0;
 
@@ -244,7 +246,7 @@ int main(int argc, char *argv[])
                 printf("Vittoria del giocatore #%i, complimenti!!\n\n", (turn % 2) + 1);
                 *value = (turn % 2) + 1;
             }
-            else if (checkPareggio(tabellone))
+            else if (checkWinBro == 0 && count_par == RIGHE*COLONNE)
             {
                 printf("Complimenti ad entrambi, avete pareggiato!\n\n\n\n\n\n");
                 *value = -1;
@@ -259,6 +261,9 @@ int main(int argc, char *argv[])
 
             // Cambio turno
             turn++; 
+
+            // Incremento counter relativo al conteggio delle pedine inserite
+            count_par++;
         }
 
         // Questo serve per sbloccare player che non ha vinto ma che era rimasto bloccato
@@ -266,7 +271,7 @@ int main(int argc, char *argv[])
         {
             semop(sem_array, &signal_players[turn % 2], 1);
         }
-        printf("partita terminata\n\n\n");
+        printf("Partita terminata\n\n\n");
         printf("Setto la stanza per nuovo match....\n\n");
 
         // Mi metto in attesa che i player siano pronti per eventuale rigioco
@@ -293,34 +298,6 @@ int main(int argc, char *argv[])
     clear_all();
 
     return 0;
-}
-
-// Controllo partita stato di parita'
-int checkPareggio(int *matrix)
-{
-
-    int counter = 0;
-    int full_board;
-    for (int i = 0; i < RIGHE; i++)
-    {
-        for (int j = 0; j < COLONNE; j++)
-        {
-            if (matrix[convertPos(i, j)] != 0)
-            {
-                counter++;
-            }
-        }
-    }
-
-    full_board = RIGHE * COLONNE;
-    if (full_board == counter && !checkWin(matrix, dimensione[2]) && !checkWin(matrix, dimensione[3]))
-    {
-        return 1;
-    }
-    else
-    {
-        return 0;
-    }
 }
 
 // Controllo partita stato di vittoria
