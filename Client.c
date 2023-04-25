@@ -388,8 +388,11 @@ int main(int argc, char *argv[])
                 {
                     do
                     {
+                        char temp_str[9] = " ";
                         printf("%s usa pedina: %c\nSCEGLI COLONNA: ", argv[1], (giocatore == 1) ? dimensione[2] : dimensione[3]);
-                    } while (!(scanf("\n%d", &chosenColumn)));
+                        scanf("%s",temp_str);
+                        chosenColumn = atoi(temp_str);
+                    } while (!chosenColumn);
 
                     mosse++;
                 } while (!putPawn(chosenColumn, (giocatore == 1) ? dimensione[2] : dimensione[3], tabellone));
