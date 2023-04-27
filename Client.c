@@ -107,7 +107,7 @@ int main(int argc, char* argv[])
     }
 
      //gestisco i segnali, qui la vittoria a tavolino
-    if (signal(SIGUSR1, handlerVittoriaTavolino) == SIG_ERR)
+    if (signal(SIGUSR1, handlerVittoriaTavolino) == SIG_ERR || signal(SIGUSR2, handlerVittoriaTavolino) == SIG_ERR)
     {
         exit(-1);
     }
@@ -711,6 +711,10 @@ void libera_posto_occupato(void)
 
 void handlerVittoriaTavolino(int sig){
 
+    if(sig == SIGUSR2){
+        printf("\n\nAbbandono il tavolo\n");
+        exit(1);
+    }
     if(array_pid[1]==-1 && array_pid[2]==-1){
         if(pidFiglio)
             printf("\n\nIl tavolo è chiuso per chiusura del server\n");
