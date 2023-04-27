@@ -25,6 +25,7 @@ int checkInput(char* input);
 void ctrlcHandler(int sig);
 void handlerVittoriaTavolino(int sig);
 void clear_ipcs(void);
+void alarmHandler(int sig);
 
 // Variabili dimensioni tabellone
 int RIGHE = 0;
@@ -66,6 +67,8 @@ int *vittoria;
 int *array_pid;
 char *player1;
 char *player2;
+int allarme = 0;
+int turn;
 
 
 
@@ -94,6 +97,12 @@ int main(int argc, char* argv[])
     {
         exit(-1);
     }
+
+    if (signal(SIGALRM,alarmHandler) == SIG_ERR)
+    {
+        exit(-1);
+    }
+     // Register signal handler
 
     // Fase controllo e take parametri
     if(argc!=5)
@@ -368,7 +377,7 @@ int main(int argc, char* argv[])
     while (1)
     {
         // Variabile per set turno player
-        int turn = 0;
+        turn = 0;
         // reset vittoria
         *vittoria = 0;
         // Variabile per conteggio pedine inserite
@@ -386,9 +395,11 @@ int main(int argc, char* argv[])
             // passo il turno
 
             // aspetto  giocata giocatore
+            allarme = 1;
+            alarm(5); //lancio allarme
             printf("Attendo giocata ...\n\n");
             
-            // Sblocco giocatore 1-2
+            // aspetto mosssa giocatore
             if(semop(sem_id2, &wait_op, 1) == -1)
             {
                 if(errno == 4){
@@ -406,6 +417,7 @@ int main(int argc, char* argv[])
                     exit(1);
                 }
             }
+            allarme = 0;
 
             // controllo esito tabellone
             checkWinBro = checkWin(tabellone, (turn%2)==0 ? pown1 : pown2);
@@ -765,6 +777,21 @@ void ctrlcHandler(int sig) {
         exit(EXIT_SUCCESS);
     }
     
+}
+
+void alarmHandler(int sig){
+    if(allarme){
+        printf("\nTempo scaduto, vittoria a tavolino per %s \n",(((turn % 2)+1)==1)?player2:player1);
+        int pidMorto = array_pid[(turn % 2)+1];
+        array_pid[(turn % 2)+1] = 0;
+        kill(pidMorto, SIGUSR2);
+        //(((turn % 2)+1)==1)? kill(array_pid[1], SIGUSR2):kill(array_pid[2], SIGUSR2);
+        turn++;
+        (((turn % 2)+1)==1)? kill(array_pid[1], SIGUSR1):kill(array_pid[2], SIGUSR1);
+        clear_ipcs();
+        exit(1);
+    }
+        
 }
 
 //se un utente che si era seduto al tavolo quitta, il server fa vincere l'altro utente a tavolino ed implode
