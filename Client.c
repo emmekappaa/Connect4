@@ -1,3 +1,7 @@
+/// @file Client.c
+/// @brief Client del match.
+/// @author Alex, Michele, Tommaso
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/shm.h>
@@ -25,26 +29,17 @@ void handlerVittoriaTavolino(int sig);
 int RIGHE = 0;
 int COLONNE = 0;
 
-// CTRL C
 int giocatore;
 int startMatch = 0;
 int dopo_menu = 0;
 int primo_menu = 0;
 
-//memoria condivisa e semafori
+int sem_mutex; // Semaforo Mutex
+int sem_array; // Array di Semafori - controllo turno giocata
+int sem_id; // semaforo 1 --> i player arrivano e lo decrementano
+int sem_id2; // semaforo 2 --> per attesa dei due player nella lobby
 
-// Semaforo Mutex
-int sem_mutex;
-
-// Array di Semafori - controllo turno giocata
-int sem_array;
-
-// semaforo 1 --> i player arrivano e lo decrementano
-int sem_id;
-
-// semaforo 2 --> per attesa dei due player nella lobby
-int sem_id2;
-
+//variabili globali necessarie all´esecuzione del programma
 int shmid_pid;
 int shmid;
 int shmid_dimensione;
@@ -60,137 +55,111 @@ int *tabellone;
 int *vittoria;
 char *player1;
 char *player2;
-const char botName[] = "BOT";
+const char botName[] = "BOT"; //nome giocatore automatico
 pid_t pidFiglio = 1; //valore fittizio
 
+
+/**
+ * E´ letteralmente il main
+ */
 int main(int argc, char* argv[])
 {
 
-    //controllo parametri input
-    //DEVE esserci un nome, e puo esserci dopo un asterisco per farlo giocare in modalita auto
+    //CONTROLLO PARAMETRI DA INPUT
     if(argc<2)
     {
         printf("Numero parametri inseriti invalido! %d\n",argc);
-        return -1;
+        return EXIT_FAILURE;
     }
-
     if(argc>=4)
     {
         printf("Attenzione, numero parametri eccessivo (%d)\nSe vuoi giocare contro il bot usa il flag  \\*  !\n",argc);
-        return -1;
+        return EXIT_FAILURE;
     }
-    
-
     if(strlen(argv[1])>200){
         printf("Nome giocatore troppo lungo\n");
-        return -1;
+        return EXIT_FAILURE;
     }
-
-    //controlli su funzione gioco automatica
-    if(argc==3 && !(argv[2][0]=='*' && argv[2][1]=='\0')){
+    if(argc==3 && !(argv[2][0]=='*' && argv[2][1]=='\0')){ //controllo gioco automatico
         printf("Parametro giocatore automatico invalido\n");
-        return -1;
+        return EXIT_FAILURE;
     }
     else if(argc==3 && argv[2][0]=='*' && argv[2][1]=='\0' ){
         pidFiglio = fork();
     }
 
-    //gestisco i segnali, qui il ctrl+c
-    if (signal(SIGINT, ctrlcHandler) == SIG_ERR)
+
+    //BINDING SEGNALI-FUNZIONI
+    if (signal(SIGINT, ctrlcHandler) == SIG_ERR)   //gestisco i segnali di CTRLC
     {
-        exit(-1);
+        exit(EXIT_FAILURE);
+    }
+    if (signal(SIGHUP, ctrlcHandler) == SIG_ERR)   //gestisco i segnali di chiusura finestra terminale
+    {
+        exit(EXIT_FAILURE);
+    }
+    if (signal(SIGUSR1, handlerVittoriaTavolino) == SIG_ERR || signal(SIGUSR2, handlerVittoriaTavolino) == SIG_ERR)   //gestisco i segnali per la vittoria a tavolino (SIGUSR1 e SIGUSR2)
+    {
+        exit(EXIT_FAILURE);
     }
 
-    if (signal(SIGHUP, ctrlcHandler) == SIG_ERR)
-    {
-        exit(-1);
-    }
 
-     //gestisco i segnali, qui la vittoria a tavolino
-    if (signal(SIGUSR1, handlerVittoriaTavolino) == SIG_ERR || signal(SIGUSR2, handlerVittoriaTavolino) == SIG_ERR)
-    {
-        exit(-1);
-    }
-
-
+    //GENERAZIONI CHIAVI
     // Genero key per segmento di memoria condivisa -- Value
     char path[255] = "./key.txt";
     key_t key = ftok(path, 1);
-
     // Genero key per segmento di memoria condivisa - ARRAY PER PID
     key_t key_pid = ftok(path, 9);
-
     // Genero key per segmento di memoria condivisa -- Tabellone
     key_t key_tabellone = ftok(path, 6);
-
     // Genero key per segmento di memoria condivisa - DIMENSIONI TABELLONE
     key_t key_dimensione = ftok(path, 8);
-
     // Genero key per segmento di memoria condivisa - INTERO PER VITTORIA
     key_t key_vittoria = ftok(path, 7);
-
     // Genero key per semaforo
     key_t key_sem = ftok(path, 2);
-
     // Genero key per semaforo 2
     key_t key_sem2 = ftok(path, 3);
-
     // Genero key per array di semafori
     key_t key_sem_array = ftok(path, 4);
-
     // Genero key per mutex
     key_t key_sem_mutex = ftok(path, 5);
-
-
     // Genero key per mutex
     key_t key_arrayNomi = ftok(path, 10);
-
     // Genero key per mutex
     key_t key_arrayNomi1 = ftok(path, 11);
-
 
     // Controllo se errore nella generazione della chiave
     if (key_arrayNomi1 == -1 || key_arrayNomi == -1 || key == -1 || key_sem == -1 || key_sem2 == -1 || key_sem_array == -1 || key_sem_mutex == -1 || key_tabellone == -1 || key_vittoria == -1 || key_dimensione == -1 || key_pid == -1)
     {   
         if(pidFiglio)
-            perror("Errore nella generazione della chiave");
-        return -1;
+            printf("Errore nella generazione della chiave");
+        return EXIT_FAILURE;
     }
 
-
-    sem_id;
-    // prendo il semaforo
+    //APERTURA SEMAFORI & MEMORIE CONDIVISE
     if ((sem_id = semget(key_sem, 1, 0666 | IPC_CREAT)) == -1)
     {
-        exit(1);
+        exit(EXIT_FAILURE);
     }
-
-    sem_id2;
-    // prendo il semaforo
     if ((sem_id2 = semget(key_sem2, 1, 0666 | IPC_CREAT)) == -1)
     {
-        exit(1);
+        exit(EXIT_FAILURE);
     }
-
-    sem_mutex;
-    // prendo mutex
     if ((sem_mutex = semget(key_sem_mutex, 1, 0666 | IPC_CREAT)) == -1)
     {   
         if(pidFiglio)
             printf("suca0_1");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
-
-    sem_array;
-    // prendo Array di Semafori
     if ((sem_array = semget(key_sem_array, 2, 0666 | IPC_CREAT)) == -1)
     {   
         if(pidFiglio)
             printf("Errore creazione Array di semafori ");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
-    // prendo segmento di memoria condivisa - ARRAY PID 
+    //prendo segmento di memoria condivisa - ARRAY PID 
     size_t size_pid = sizeof(int)*3;
     shmid_pid = shmget(key_pid, size_pid, IPC_CREAT | S_IRUSR | S_IWUSR);
     array_pid = (int *)shmat(shmid_pid, NULL, 0);
@@ -198,24 +167,23 @@ int main(int argc, char* argv[])
     if (array_pid == (void *)-1)
     {   
         if(pidFiglio)
-            perror("Errore nell'attach della memoria condivisa");
+            printf("Errore nell'attach della memoria condivisa");
         exit(EXIT_FAILURE);
     }
 
     if(!array_pid[0]){ //check server off
-
         if(pidFiglio)
             printf("Server offline, quitto!\n");
         if (shmdt(array_pid) == -1)
         {   
             if(pidFiglio)
                 printf("Errore detach memory value");
-            exit(1);
+            exit(EXIT_FAILURE);
         }
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
-    // operazioni wait e signal
+    //operazioni wait e signal che useremo spesso
     struct sembuf wait_op = {0, -1, 0};
     struct sembuf signal_op = {0, 1, 0};
 
@@ -225,19 +193,15 @@ int main(int argc, char* argv[])
                 
                 if(pidFiglio)
                     printf("Primissima wait errore\n");
-                exit(1);
+                exit(EXIT_FAILURE);
             }
-        } //per colpa della ctrlc
+        }
         else{
-
             if(pidFiglio)
                 printf("Primissima wait errore\n");
-
-            exit(1);
+            exit(EXIT_FAILURE);
         }
     }
-
-    
 
     // prendo segmento di memoria condivisa per Value
     size_t size = sizeof(int);
@@ -248,7 +212,7 @@ int main(int argc, char* argv[])
     if (value == (void *)-1)
     {   
         if(pidFiglio)
-            perror("Errore nell'attach della memoria condivisa");
+            printf("Errore nell'attach della memoria condivisa");
         exit(EXIT_FAILURE);
     }
 
@@ -261,7 +225,7 @@ int main(int argc, char* argv[])
     if (vittoria == (void *)-1)
     {   
         if(pidFiglio)
-            perror("Errore nell'attach della memoria condivisa");
+            printf("Errore nell'attach della memoria condivisa");
         exit(EXIT_FAILURE);
     }
 
@@ -274,19 +238,18 @@ int main(int argc, char* argv[])
     if (dimensione == (void *)-1)
     {   
         if(pidFiglio)
-            perror("Errore nell'attach della memoria condivisa");
+            printf("Errore nell'attach della memoria condivisa");
         exit(EXIT_FAILURE);
     }
 
     //genero segmento di memoria array per i nomi
-    size_t size_nomiArray = sizeof(char)*200;
-    shmid_player1 = shmget(key_arrayNomi, size_pid, IPC_CREAT | S_IRUSR | S_IWUSR);
+    size_t size_nomi = sizeof(char)*200;
+    shmid_player1 = shmget(key_arrayNomi, size_nomi, IPC_CREAT | S_IRUSR | S_IWUSR);
     player1 = (char *)shmat(shmid_player1, NULL, 0);
-    shmid_player2 = shmget(key_arrayNomi1, size_pid, IPC_CREAT | S_IRUSR | S_IWUSR);
+    shmid_player2 = shmget(key_arrayNomi1, size_nomi, IPC_CREAT | S_IRUSR | S_IWUSR);
     player2 = (char *)shmat(shmid_player2, NULL, 0);
 
-
-    int gameMode = 0;
+    int gameMode = 0; //modalita di gioco, se 1 gioca, se 2 esci dal menu´
     int rigioco;
     printIntroGame();
     do{ 
@@ -309,8 +272,6 @@ int main(int argc, char* argv[])
     else
         (giocatore == 0) ? strcpy(player1,botName) : strcpy(player2,botName);
 
-
-
     dopo_menu = 1;
     primo_menu = 1;
     rigioco = 0;
@@ -321,7 +282,7 @@ int main(int argc, char* argv[])
         *value -= 1;
         if(pidFiglio)
             kill(array_pid[0], SIGUSR1);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     if(pidFiglio)
@@ -331,11 +292,8 @@ int main(int argc, char* argv[])
     if (semop(sem_id2, &signal_op, 1) == -1)
     { 
         printf("Tavolo offline\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
-
-    // ACCEDO IN MUTEX con semaforo a 0 A SHARED MEMORY PER SAPERE SE SONO GIOCATORE 1 O 2
-    // nb: la shared memory viene creata da server che poi mette il semaforo ad 1
 
     // decremento mutex
     // leggo che giocatore sono
@@ -346,34 +304,34 @@ int main(int argc, char* argv[])
             if (semop(sem_mutex, &wait_op, 1) == -1){
                 if(pidFiglio)
                     printf("Errore wait secondo semaforo\n");
-                exit(1);
+                exit(EXIT_FAILURE);
             }
         } //per colpa della ctrlc
         else if(errno == 43)
         {
             if(pidFiglio)
                 printf("Tavolo chiuso\n");
-            exit(1);
+            exit(EXIT_FAILURE);
         }
         else{
             if(pidFiglio)
                 printf("Errore wait secondo semaforo\n");
-            exit(1);
+            exit(EXIT_FAILURE);
         }
     }
-    //giocatore = *value; // salvo che giocatore sono
+
     int value_stored = giocatore;
     startMatch = 1;
     giocatore++;
     array_pid[giocatore] = getpid();
-    //*value += 1;
+
     if (semop(sem_mutex, &signal_op, 1) == -1)
     {
-        exit(1);
+        exit(EXIT_FAILURE);
     }
+
     RIGHE = dimensione[0];
     COLONNE = dimensione[1];
-
 
     // prendo segmento di memoria condivisa per Tabellone
     size_t size_tabellone = sizeof(int) * RIGHE * COLONNE;
@@ -384,17 +342,17 @@ int main(int argc, char* argv[])
     if (tabellone == (void *)-1)
     {   
         if(pidFiglio)
-            perror("Errore nell'attach della memoria condivisa");
+            printf("Errore nell'attach della memoria condivisa");
         exit(EXIT_FAILURE);
     }
 
     while (gameMode != 2)
     {
-
         if(pidFiglio){
             printf("%s sei giocatore #%i\n", argv[1], giocatore);
             printf("Pedina utilizzata: %c",(giocatore == 1) ? dimensione[2] : dimensione[3]);
         }
+
         struct sembuf wait_player = {giocatore - 1, -1, 0};
         struct sembuf signal_player = {giocatore - 1, 1, 0};
         int chosenColumn = 0;
@@ -411,7 +369,7 @@ int main(int argc, char* argv[])
                     {
                         if(pidFiglio)
                             printf("exit 130 sono qua");
-                        exit(1);
+                        exit(EXIT_FAILURE);
                     }
                 }
                 else if(errno == 43)
@@ -424,9 +382,8 @@ int main(int argc, char* argv[])
                         printf("%i",errno);
                         printf("exit 130");
                     }    
-                    exit(1);
-                }
-                
+                    exit(EXIT_FAILURE);
+                }   
             }
 
             if (*vittoria != 1)
@@ -463,13 +420,15 @@ int main(int argc, char* argv[])
                         
                     } while (!chosenColumn);
                 } while (!putPawn(chosenColumn, (giocatore==1) ? dimensione[2] : dimensione[3], tabellone));
+
                 if(pidFiglio)
                     printTable(tabellone, 1);
+
                 if (semop(sem_id2, &signal_op, 1) == -1)
                 {
                     if(pidFiglio)
                         printf("exit 140");
-                    exit(1);
+                    exit(EXIT_FAILURE);
                 }
 
                 if (semop(sem_array, &wait_player, 1) == -1){
@@ -477,19 +436,20 @@ int main(int argc, char* argv[])
                         if (semop(sem_array, &wait_player, 1) == -1){
                             if(pidFiglio)
                                 printf("Exit 130 maso\n");
-                            exit(1);
+                            exit(EXIT_FAILURE);
                         }
                     }
                     else{
                         if(pidFiglio)
                             printf("Exit 130 vero\n");
-                        exit(1);
+                        exit(EXIT_FAILURE);
                     }
                 }
             }
 
         } while (*vittoria == 0);
 
+        //controllo vittoria/sconfitta/pareggio
         if(*value == -1){ //in caso di pareggio
             if(pidFiglio)
                 printf("Pareggio!\n\n\n\n\n");
@@ -508,14 +468,12 @@ int main(int argc, char* argv[])
                 printTable(tabellone, 1);
             }
         }
-
         
         startMatch = 1;
         rigioco = 1;
 
-        if (rigioco)
+        if(rigioco)
         {
-
             printIntroGame();
             dopo_menu = 0;
             do{
@@ -526,45 +484,35 @@ int main(int argc, char* argv[])
                 else
                     gameMode = 1;
             }while(gameMode!=1 && gameMode!=2 );
-            
             // Manda un singolo ack al Server (1/2)
             if (semop(sem_id2, &signal_op, 1) == -1)
             {
                 exit(1);
             }
             dopo_menu = 1;
-
             startMatch = 1;
         }
-
         if(gameMode == 2)
         {
             //AVVISIAMO il server che sto quittando
-            //rimuovo il mio pid dall'array
-            //array_pid[giocatore] = 0;
             kill(array_pid[0], SIGUSR1); //mando sigUSER1 a server
             if(pidFiglio)
                 printf("Abbandono il tavolo!\n");
-            exit(1);
+            exit(EXIT_SUCCESS);
         }
     }
-
     return 0;
 }
 
-/*
-FUNZIONE CHE ACCETTA UNA COLONNA NELLA QUALE BUTTARE LA PEDINA
-RETURN: status operazione 0 se fallita o 1 se successo
 
-
-1 2 3 4 5
-x x x x x
-x x x x 0
-x 0 x x 0
-0 0 x 0 0
-
-x x x x x /x x x x x x x x x x x x x x x x x x x x x x x x x
-*/
+/**
+ * Funzione che accetta una colonna nella quale mettere la pedina
+ * 
+ * @param int column colonna scelta per giocare
+ * @param int player paramatro passato controllare il campo di gioco
+ * @param int *matrix matrice sulla quale giocare
+ * @return status operazione 0 se fallita o 1 se success
+ */
 int putPawn(int column, int player, int *matrix)
 {
     int check = 0;
@@ -578,7 +526,6 @@ int putPawn(int column, int player, int *matrix)
     // check se c'è spazio
     for (int i = RIGHE -1; i >= 0 && !check; i--)
     {
-        // ipotizzo che -1 significhi spazio libero
         if (matrix[convertPos(i, column)] == 0) // controllo se spazio libero
         {
             matrix[convertPos(i, column)] = player; // piazzo pedina
@@ -593,14 +540,18 @@ int putPawn(int column, int player, int *matrix)
         return 0;
     }
     return 1;
-
-
-
 }
 
+
+/**
+ * Removes all data used by the GIF handler
+ * 
+ * @param int *matrix e´ la matrice da stampare
+ * @param int mode modalita´ di stampata
+ * @return void
+ */
 void printTable(int *matrix, int mode)
 {
-
     if (mode == 2)
     {
         if(pidFiglio)
@@ -632,43 +583,75 @@ void printTable(int *matrix, int mode)
                 if(pidFiglio)
                     printf("%c ",(char)matrix[pos]);
             }
-
         }
         if(pidFiglio)
             printf("\n");
     }
-
     if(pidFiglio)
         printf("\n\n");
 }
 
-/*
-    converto da posizione riga/colonna ad indice array monodimensionale
-    NB: ragioniamo dal basso
-*/
+
+/**
+ * Funzione di conversione di riga/colonna di forma bidimensionale di matrice a forma lineare di indice di array
+ * @param int row indica la posizione della riga della matrice
+ * @param int column indica la posizione della colonna della matrice
+ * @return int che inidcherà la posizione rispettiva al nostro array
+ */
 int convertPos(int row, int column)
 {
     column--;
     return column + (COLONNE * (row));
 }
 
-/*
-    stampo logo e scelta gioco
-*/
-void printIntroGame()
+
+/**
+ * Funzione di stampa del logo e del menù di scelta della modalità di gioco
+ * @return void
+ */
+void printIntroGame(void)
 {
     if(pidFiglio)
-    {printf("    ______                          __ __    \n");
-    printf("   / ____/____ _________  ____ _   / // /  ◉ \n");
-    printf("  / /_  / __  / ___/_  / / __ `/  / // /_  ◉ \n");
-    printf(" / __/ / /_/ / /    / /_/ /_/ /  /__  __/  ◉ \n");
-    printf("/_/   /_____/_/    /___/___,_/     /_/     ◉ \n\n");
-    printf("MENÜ:\n1) GIOCA 1V1\n2) QUIT\n\n");}
+    {
+        printf("    ______                          __ __    \n");
+        printf("   / ____/____ _________  ____ _   / // /  ◉ \n");
+        printf("  / /_  / __  / ___/_  / / __ `/  / // /_  ◉ \n");
+        printf(" / __/ / /_/ / /    / /_/ /_/ /  /__  __/  ◉ \n");
+        printf("/_/   /_____/_/    /___/___,_/     /_/     ◉ \n\n");
+        printf("MENÜ:\n1) GIOCA 1V1\n2) QUIT\n\n");
+    }
 }
 
+
+/**
+ * Funzione usata per segnalare al server che un utente ha lasciato il game
+ * 
+ * @param void
+ * @return void
+ */
+void libera_posto_occupato(void)
+{
+    struct sembuf signal_op = {0, 1, 0};
+    struct sembuf wait_op = {0, -1, 0};
+    if(pidFiglio){ //se ho figliato
+        if (semop(sem_id, &signal_op, 1) == -1)
+            exit(EXIT_FAILURE);
+    }   
+    if (semop(sem_id, &signal_op, 1) == -1)
+    {
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+/**
+ * Funzione usata per gestire il CTRL C
+ * 
+ * @param int sig parametro che inidica il segnale preso in ingresso
+ * @return void
+ */
 void ctrlcHandler(int sig) { 
     if(primo_menu){
-
         if(!(array_pid[1] && array_pid[2])){
             if(pidFiglio)
                 printf("\n\nUtente ritirato!\n"); 
@@ -677,58 +660,43 @@ void ctrlcHandler(int sig) {
             if(pidFiglio)
                 printf("\n\n\nMi ritiro\n");
         }
-        
         if(startMatch){
             array_pid[giocatore] = 0;
         }
         kill(array_pid[0], SIGUSR1); //mando sigUSER1 a server
-        //ATTENZIONE, VA COMUNICATO AL SERVER CHE MI SON RITIRATO E QUINDI L'ALTRO CLIENT VINCE A TAVOLINO
-        exit(1);
-        //DOBBIAMO INFORMARE I CLIENT CHE SERVER TERMINATO, ci servono i loro pid probabilmente
+        exit(EXIT_SUCCESS);
     }
     else{
         libera_posto_occupato();
-        exit(1);
-    }
-        
+        exit(EXIT_SUCCESS);
+    }   
 }
 
-void libera_posto_occupato(void)
-{
-    struct sembuf signal_op = {0, 1, 0};
-    struct sembuf wait_op = {0, -1, 0};
-    if(pidFiglio){ //se ho figliato
-        if (semop(sem_id, &signal_op, 1) == -1)
-            exit(1);
-    }
-    
-    if (semop(sem_id, &signal_op, 1) == -1)
-    {
-        exit(1);
-    }
 
-}
-
+/**
+ * Funzione per gestire SIGUSR1 e SIGUSR2
+ * 
+ * @param int parametro che inidica il segnale preso in ingresso
+ * @return void
+ */
 void handlerVittoriaTavolino(int sig){
-
     if(sig == SIGUSR2){
         printf("\n\nAbbandono il tavolo\n");
-        exit(1);
+        exit(EXIT_SUCCESS);
     }
     if(array_pid[1]==-1 && array_pid[2]==-1){
         if(pidFiglio)
             printf("\n\nIl tavolo è chiuso per chiusura del server\n");
-        exit(1);
+        exit(EXIT_SUCCESS);
     }
     if(array_pid[1] && array_pid[2]){
         if(pidFiglio)
             printf("Il tavolo è chiuso per abbandono\n");
-        exit(1);
+        exit(EXIT_SUCCESS);
     }
     else{
         if(pidFiglio)
             printf("\n\nHo vinto a tavolino\n");
-        exit(1);    
+        exit(EXIT_SUCCESS);    
     }
-    
 }
