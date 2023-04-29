@@ -405,7 +405,7 @@ int main(int argc, char* argv[])
             allarme = 1;
 
             // Lancio allarme
-            alarm(5); 
+            alarm(20); 
 
             printf("Attendo giocata ...\n\n");
             
