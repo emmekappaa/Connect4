@@ -1,4 +1,5 @@
 # Forza Quattro (Connect4)
+[![forthebadge](https://forthebadge.com/images/badges/made-with-c.svg)](https://forthebadge.com) [![forthebadge](https://forthebadge.com/images/badges/for-you.svg)](https://forthebadge.com)
 
 This is an implementation of the classic game "Forza Quattro" (Connect Four) in C.
 
