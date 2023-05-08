@@ -508,7 +508,7 @@ int checkWin(int *matrix, int player)
     // CONTROLLO ORRIZONTALE - righe
     for (int righe = RIGHE - 1; righe >= 0; righe--)
     {
-        counter == 0;
+        counter = 0;
 
         // Controllo se le pedine gia prese e le pedine probabili rimanenti sono maggiori di 4
         for (int clm = 0; clm < COLONNE && (counter + (COLONNE - clm) >= 4); clm++)
@@ -530,7 +530,7 @@ int checkWin(int *matrix, int player)
     // CONTROLLO VERTICALE - colonne
     for (int clm = 0; clm < COLONNE; clm++)
     {
-        counter == 0;
+        counter = 0;
 
         // Controllo se le pedine gia prese e le pedine probabili rimanenti sono maggiori di 4
         for (int row = RIGHE - 1; row >= 0 ; row--)
