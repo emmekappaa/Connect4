@@ -612,7 +612,7 @@ void printIntroGame(void)
         printf("  / /_  / __  / ___/_  / / __ `/  / // /_  ◉ \n");
         printf(" / __/ / /_/ / /    / /_/ /_/ /  /__  __/  ◉ \n");
         printf("/_/   /_____/_/    /___/___,_/     /_/     ◉ \n\n");
-        printf("MENÜ:\n1) GIOCA 1V1\n2) QUIT\n\n");
+        printf("MENU:\n1) GIOCA\n2) QUIT\n\n");
     }
 }
 
