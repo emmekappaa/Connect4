@@ -320,7 +320,6 @@ int main(int argc, char* argv[])
         }
     }
 
-    int value_stored = giocatore;
     startMatch = 1;
     giocatore++;
     array_pid[giocatore] = getpid();
@@ -354,7 +353,6 @@ int main(int argc, char* argv[])
         }
 
         struct sembuf wait_player = {giocatore - 1, -1, 0};
-        struct sembuf signal_player = {giocatore - 1, 1, 0};
         int chosenColumn = 0;
 
         if(pidFiglio)
@@ -632,7 +630,6 @@ void printIntroGame(void)
 void libera_posto_occupato(void)
 {
     struct sembuf signal_op = {0, 1, 0};
-    struct sembuf wait_op = {0, -1, 0};
     if(pidFiglio){ //se ho figliato
         if (semop(sem_id, &signal_op, 1) == -1)
             exit(EXIT_FAILURE);
