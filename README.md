@@ -1,4 +1,4 @@
-# Forza Quattro
+# Forza Quattro (Connect4)
 
 This is an implementation of the classic game "Forza Quattro" (Connect Four) in C.
 
