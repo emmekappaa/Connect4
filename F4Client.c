@@ -247,16 +247,24 @@ int main(int argc, char* argv[])
 
     int gameMode = 0; //modalita di gioco, se 1 gioca, se 2 esci dal menu´
     int rigioco;
+    char choice_str[9] = " ";
+    int choice = 0;
+
     printIntroGame();
     do{ 
-        if(pidFiglio){
-            printf("SCEGLI: ");
-            scanf(" %i: ", &gameMode);
-        }
-        else
-            gameMode = 1;
-            
-    }while(gameMode!=1 && gameMode!=2 );
+            if(pidFiglio)
+            {
+                printf("SCEGLI: ");
+                scanf(" %s: ", choice_str);
+                choice = atoi(choice_str);
+                gameMode = choice;
+            }
+            else
+            {
+                gameMode = 1;
+            }
+
+    }while(gameMode!=1 && gameMode!=2 && !choice);
 
     giocatore = *value; // salvo che giocatore sono
     *value += 1;
@@ -465,7 +473,8 @@ int main(int argc, char* argv[])
         
         startMatch = 1;
         rigioco = 1;
-
+        char choice_str1[9] = " ";
+        int choice1 = 0;
         if(rigioco)
         {
             printIntroGame();
@@ -473,11 +482,14 @@ int main(int argc, char* argv[])
             do{
                 if(pidFiglio){
                     printf("SCEGLI: ");
-                    scanf(" %i: ", &gameMode);
+                    scanf(" %s: ", choice_str1);
+                    choice1 = atoi(choice_str1);
+                    gameMode = choice1;
                 }
-                else
+                else{
                     gameMode = 1;
-            }while(gameMode!=1 && gameMode!=2 );
+                }
+            }while(gameMode!=1 && gameMode!=2 && !choice1);
             // Manda un singolo ack al Server (1/2)
             if (semop(sem_id2, &signal_op, 1) == -1)
             {
