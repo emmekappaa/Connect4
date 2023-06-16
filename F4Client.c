@@ -412,6 +412,11 @@ int main(int argc, char* argv[])
                         if(pidFiglio){
                             printf("%s usa pedina: %c\nSCEGLI COLONNA: ", argv[1], (giocatore == 1) ? dimensione[2] : dimensione[3]);
                             scanf("%s",temp_str);
+
+                            if (strcspn(temp_str, ".,") != strlen(temp_str)) {
+                                printf("Input non valido. Si prega di inserire un numero intero.\n");
+                                continue; //salta a prossima iterazione
+                            }   
                         }
                         else
                         {
