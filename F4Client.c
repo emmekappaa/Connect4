@@ -20,7 +20,8 @@ void printIntroGame();
 void ctrlcHandler(int sig);
 void libera_posto_occupato(void);
 void handlerVittoriaTavolino(int sig);
-
+void handlerAlarm(int sig);
+void clear_ipcs(int);
 // Variabili dimensioni tabellone
 int RIGHE = 0;
 int COLONNE = 0;
@@ -98,6 +99,10 @@ int main(int argc, char* argv[])
     {
         exit(EXIT_FAILURE);
     }
+    if(signal(SIGALRM, handlerAlarm) == SIG_ERR)
+    {
+        exit(EXIT_FAILURE);
+    }
 
 
     //GENERAZIONI CHIAVI
@@ -145,7 +150,7 @@ int main(int argc, char* argv[])
     if ((sem_mutex = semget(key_sem_mutex, 1, 0666 | IPC_CREAT)) == -1)
     {   
         if(pidFiglio)
-            printf("suca0_1");
+            printf("Errore generazione chiave");
         exit(EXIT_FAILURE);
     }
     if ((sem_array = semget(key_sem_array, 2, 0666 | IPC_CREAT)) == -1)
@@ -168,36 +173,37 @@ int main(int argc, char* argv[])
     }
 
     if(!array_pid[0]){ //check server off
+
         if(pidFiglio)
+        {
             printf("Server offline, quitto!\n");
-        if (shmdt(array_pid) == -1)
-        {   
-            if(pidFiglio)
-                printf("Errore detach memory value");
-            exit(EXIT_FAILURE);
         }
-        exit(EXIT_FAILURE);
+        clear_ipcs(1);
     }
 
     //operazioni wait e signal che useremo spesso
     struct sembuf wait_op = {0, -1, 0};
     struct sembuf signal_op = {0, 1, 0};
 
+    alarm(2);
     if (semop(sem_id, &wait_op, 1) == -1){
         if(errno == 4){
             if (semop(sem_id, &wait_op, 1) == -1){
                 
                 if(pidFiglio)
                     printf("Primissima wait errore\n");
+                clear_ipcs(2);
                 exit(EXIT_FAILURE);
             }
         }
         else{
             if(pidFiglio)
                 printf("Primissima wait errore\n");
+            clear_ipcs(2);
             exit(EXIT_FAILURE);
         }
     }
+    alarm(0);
 
     // prendo segmento di memoria condivisa per Value
     size_t size = sizeof(int);
@@ -209,6 +215,7 @@ int main(int argc, char* argv[])
     {   
         if(pidFiglio)
             printf("Errore nell'attach della memoria condivisa");
+        clear_ipcs(2);
         exit(EXIT_FAILURE);
     }
 
@@ -222,6 +229,7 @@ int main(int argc, char* argv[])
     {   
         if(pidFiglio)
             printf("Errore nell'attach della memoria condivisa");
+        clear_ipcs(2);
         exit(EXIT_FAILURE);
     }
 
@@ -235,6 +243,7 @@ int main(int argc, char* argv[])
     {   
         if(pidFiglio)
             printf("Errore nell'attach della memoria condivisa");
+        clear_ipcs(2);
         exit(EXIT_FAILURE);
     }
 
@@ -286,6 +295,7 @@ int main(int argc, char* argv[])
         *value -= 1;
         if(pidFiglio)
             kill(array_pid[0], SIGUSR1);
+        clear_ipcs(2);
         exit(EXIT_FAILURE);
     }
 
@@ -296,6 +306,7 @@ int main(int argc, char* argv[])
     if (semop(sem_id2, &signal_op, 1) == -1)
     { 
         printf("Tavolo offline\n");
+        clear_ipcs(2);
         exit(EXIT_FAILURE);
     }
 
@@ -308,6 +319,7 @@ int main(int argc, char* argv[])
             if (semop(sem_mutex, &wait_op, 1) == -1){
                 if(pidFiglio)
                     printf("Errore wait secondo semaforo\n");
+                clear_ipcs(2);
                 exit(EXIT_FAILURE);
             }
         } //per colpa della ctrlc
@@ -315,11 +327,13 @@ int main(int argc, char* argv[])
         {
             if(pidFiglio)
                 printf("Tavolo chiuso\n");
+            clear_ipcs(2);
             exit(EXIT_FAILURE);
         }
         else{
             if(pidFiglio)
                 printf("Errore wait secondo semaforo\n");
+            clear_ipcs(2);
             exit(EXIT_FAILURE);
         }
     }
@@ -330,6 +344,7 @@ int main(int argc, char* argv[])
 
     if (semop(sem_mutex, &signal_op, 1) == -1)
     {
+        clear_ipcs(2);
         exit(EXIT_FAILURE);
     }
 
@@ -346,6 +361,7 @@ int main(int argc, char* argv[])
     {   
         if(pidFiglio)
             printf("Errore nell'attach della memoria condivisa");
+        clear_ipcs(2);
         exit(EXIT_FAILURE);
     }
 
@@ -371,6 +387,7 @@ int main(int argc, char* argv[])
                     {
                         if(pidFiglio)
                             printf("exit 130 sono qua");
+                        clear_ipcs(2);
                         exit(EXIT_FAILURE);
                     }
                 }
@@ -384,6 +401,7 @@ int main(int argc, char* argv[])
                         printf("%i",errno);
                         printf("exit 130");
                     }    
+                    clear_ipcs(2);
                     exit(EXIT_FAILURE);
                 }   
             }
@@ -435,6 +453,7 @@ int main(int argc, char* argv[])
                 {
                     if(pidFiglio)
                         printf("exit 140");
+                    clear_ipcs(2);
                     exit(EXIT_FAILURE);
                 }
 
@@ -443,12 +462,14 @@ int main(int argc, char* argv[])
                         if (semop(sem_array, &wait_player, 1) == -1){
                             if(pidFiglio)
                                 printf("Exit 130 maso\n");
+                            clear_ipcs(2);
                             exit(EXIT_FAILURE);
                         }
                     }
                     else{
                         if(pidFiglio)
                             printf("Exit 130 vero\n");
+                        clear_ipcs(2);
                         exit(EXIT_FAILURE);
                     }
                 }
@@ -498,7 +519,8 @@ int main(int argc, char* argv[])
             // Manda un singolo ack al Server (1/2)
             if (semop(sem_id2, &signal_op, 1) == -1)
             {
-                exit(1);
+                clear_ipcs(2);
+                exit(EXIT_FAILURE);
             }
             dopo_menu = 1;
             startMatch = 1;
@@ -509,6 +531,7 @@ int main(int argc, char* argv[])
             kill(array_pid[0], SIGUSR1); //mando sigUSER1 a server
             if(pidFiglio)
                 printf("Abbandono il tavolo!\n");
+            clear_ipcs(2);
             exit(EXIT_SUCCESS);
         }
     }
@@ -645,10 +668,16 @@ void libera_posto_occupato(void)
     struct sembuf signal_op = {0, 1, 0};
     if(pidFiglio){ //se ho figliato
         if (semop(sem_id, &signal_op, 1) == -1)
+        {
+            clear_ipcs(2);
             exit(EXIT_FAILURE);
+
+        }
+            
     }   
     if (semop(sem_id, &signal_op, 1) == -1)
     {
+        clear_ipcs(2);
         exit(EXIT_FAILURE);
     }
 }
@@ -678,6 +707,7 @@ void ctrlcHandler(int sig) {
     }
     else{
         libera_posto_occupato();
+        clear_ipcs(2);
         exit(EXIT_SUCCESS);
     }   
 }
@@ -692,24 +722,123 @@ void ctrlcHandler(int sig) {
 void handlerVittoriaTavolino(int sig){
     if(sig == SIGUSR2){
         printf("\n\nAbbandono il tavolo\n");
+        clear_ipcs(2);
         exit(EXIT_SUCCESS);
     }
     if(array_pid[1]==-1 && array_pid[2]==-1){
         if(pidFiglio)
             printf("\n\nIl tavolo è chiuso per chiusura del server\n");
+        clear_ipcs(2);
         exit(EXIT_SUCCESS);
     }
     if(array_pid[1] && array_pid[2]){
         if(pidFiglio)
             printf("Il tavolo è chiuso per abbandono\n");
+        clear_ipcs(2);
         exit(EXIT_SUCCESS);
     }
     else{
         if(pidFiglio)
             printf("\n\nHo vinto a tavolino\n");
+        clear_ipcs(2);
         exit(EXIT_SUCCESS);    
     }
 }
+
+/**
+ * Chiusura shared e semafori
+ * 
+ * @return void
+ */
+
+void clear_ipcs(int select)
+{
+    if(select == 1)
+    {
+        //  detach dalla shared memory pid
+        if (shmdt(array_pid) == -1)
+        {
+            printf("Errore detach memory array pid");
+            exit(EXIT_FAILURE);
+        }
+
+        // rimozione del array di semafori
+        if (semctl(sem_array, 0, IPC_RMID, 0) == -1)
+        {
+            printf("Errore rimozione array di semafori");
+            exit(EXIT_FAILURE);
+        }
+
+        // rimozione di semaforo mutex
+        if (semctl(sem_mutex, 0, IPC_RMID, 0) == -1)
+        {
+            printf("Errore rimozione mutex");
+            exit(EXIT_FAILURE);
+        }
+
+        // rimozione del semaforo2
+        if (semctl(sem_id2, 0, IPC_RMID, 0) == -1)
+        {
+            printf("Errore rimozione secondo semaforo");
+            exit(EXIT_FAILURE);
+        }
+
+        // rimozione del semaforo
+        if (semctl(sem_id, 0, IPC_RMID, 0) == -1)
+        {
+            printf("Errore rimozione primo semaforo");
+            exit(EXIT_FAILURE);
+        }
+        
+        exit(EXIT_SUCCESS);
+    }
+    else if (select == 2)
+    {
+        if(shmdt(value) == -1)
+        {
+            //perror("Error");
+        }
+
+        if(shmdt(tabellone) == -1)
+        {
+            //perror("Error");
+        }
+
+        if(shmdt(vittoria) == -1)
+        {
+            //perror("Error");
+        }
+
+        //  detach dalla shared memory dimensione
+
+        if(shmdt(dimensione) == -1)
+        {   
+           // perror("Error");
+        }
+
+
+        //  detach dalla shared memory pid
+
+        if(shmdt(array_pid) == -1)
+        {   
+           // perror("Error");
+        }
+    }
+
+}
+
+/**
+ * Funzione usata per gestire il SIGALRM
+ * 
+ * @param int sig parametro che inidica il segnale preso in ingresso
+ * @return void
+ */
+void handlerAlarm(int sig)
+{
+    printf("Server pieno\n");
+    exit(EXIT_SUCCESS);
+}
+
 
 /************************************
 * VR471343 - VR471337 - VR471487

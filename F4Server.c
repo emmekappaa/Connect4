@@ -170,9 +170,9 @@ int main(int argc, char* argv[])
     }
 
     // Creazione del mutex
-    if ((sem_mutex = semget(key_sem_mutex, 1, 0666 | IPC_CREAT)) == -1)
+    if ((sem_mutex = semget(key_sem_mutex, 1, 0666 | IPC_CREAT | IPC_EXCL)) == -1)
     {
-        printf("Errore creazione Mutex");
+        printf("Server gia' presente!\n");
         exit(EXIT_FAILURE);
     }
 
