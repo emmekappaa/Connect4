@@ -18,10 +18,10 @@ int putPawn(int column, int player, int *matrix);
 int convertPos(int row, int column);
 void printIntroGame();
 void ctrlcHandler(int sig);
-void libera_posto_occupato(void);
 void handlerVittoriaTavolino(int sig);
 void handlerAlarm(int sig);
 void clear_ipcs(int);
+
 // Variabili dimensioni tabellone
 int RIGHE = 0;
 int COLONNE = 0;
@@ -30,7 +30,7 @@ int giocatore;
 int startMatch = 0;
 int dopo_menu = 0;
 int primo_menu = 0;
-
+int flag10 = 1;
 int sem_mutex; // Semaforo Mutex
 int sem_array; // Array di Semafori - controllo turno giocata
 int sem_id; // semaforo 1 --> i player arrivano e lo decrementano
@@ -53,19 +53,18 @@ int *vittoria;
 char *player1;
 char *player2;
 const char botName[] = "BOT"; //nome giocatore automatico
-pid_t pidFiglio = 1; //valore fittizio
+pid_t pidFiglio = -1; //valore fittizio
 
 
-/**
- * E´ letteralmente il main
- */
+
+
 int main(int argc, char* argv[])
 {
 
     //CONTROLLO PARAMETRI DA INPUT
     if(argc<2)
     {
-        printf("Numero parametri inseriti invalido! %d\n",argc);
+        printf("Numero parametri inseriti invalido, inserisci il tuo nome! \n");
         return EXIT_FAILURE;
     }
     if(argc>=4)
@@ -182,8 +181,11 @@ int main(int argc, char* argv[])
     }
 
     //operazioni wait e signal che useremo spesso
-    struct sembuf wait_op = {0, -1, 0};
+    struct sembuf wait_op = {0, -1, 0}; 
+    
     struct sembuf signal_op = {0, 1, 0};
+
+
 
     alarm(2);
     if (semop(sem_id, &wait_op, 1) == -1){
@@ -291,8 +293,6 @@ int main(int argc, char* argv[])
     
     if(gameMode == 2)
     {
-        libera_posto_occupato();
-        *value -= 1;
         if(pidFiglio)
             kill(array_pid[0], SIGUSR1);
         clear_ipcs(2);
@@ -529,8 +529,10 @@ int main(int argc, char* argv[])
         {
             //AVVISIAMO il server che sto quittando
             kill(array_pid[0], SIGUSR1); //mando sigUSER1 a server
-            if(pidFiglio)
+            if(pidFiglio && flag10){
                 printf("Abbandono il tavolo!\n");
+                flag10 = 0;
+            }
             clear_ipcs(2);
             exit(EXIT_SUCCESS);
         }
@@ -658,32 +660,6 @@ void printIntroGame(void)
 
 
 /**
- * Funzione usata per segnalare al server che un utente ha lasciato il game
- * 
- * @param void
- * @return void
- */
-void libera_posto_occupato(void)
-{
-    struct sembuf signal_op = {0, 1, 0};
-    if(pidFiglio){ //se ho figliato
-        if (semop(sem_id, &signal_op, 1) == -1)
-        {
-            clear_ipcs(2);
-            exit(EXIT_FAILURE);
-
-        }
-            
-    }   
-    if (semop(sem_id, &signal_op, 1) == -1)
-    {
-        clear_ipcs(2);
-        exit(EXIT_FAILURE);
-    }
-}
-
-
-/**
  * Funzione usata per gestire il CTRL C
  * 
  * @param int sig parametro che inidica il segnale preso in ingresso
@@ -706,11 +682,11 @@ void ctrlcHandler(int sig) {
         exit(EXIT_SUCCESS);
     }
     else{
-        libera_posto_occupato();
         clear_ipcs(2);
         exit(EXIT_SUCCESS);
     }   
 }
+
 
 
 /**
@@ -721,7 +697,11 @@ void ctrlcHandler(int sig) {
  */
 void handlerVittoriaTavolino(int sig){
     if(sig == SIGUSR2){
-        printf("\n\nAbbandono il tavolo\n");
+        if((pidFiglio || pidFiglio==-1) && flag10){
+            printf("\n\nAbbandono il tavolo\n");
+            flag10 = 0;
+        }
+
         clear_ipcs(2);
         exit(EXIT_SUCCESS);
     }
@@ -835,8 +815,12 @@ void clear_ipcs(int select)
  */
 void handlerAlarm(int sig)
 {
-    printf("Server pieno\n");
-    exit(EXIT_SUCCESS);
+    if(pidFiglio)
+        printf("Server pieno\n");
+    if(!pidFiglio)
+        printf("Il bot è stato fermato!\n");
+    exit(EXIT_FAILURE);
+    printf("e invece no\n");
 }
 
 
