@@ -45,7 +45,7 @@ The program also handles forced exits (CTRL-C, "x" on the terminal), whether exe
 
 In both classic and automatic games, the game board is displayed at each turn (with the opponent's/Bot's move). The player can select where to place their piece on the board and finally confirm their move with a submit command. If the player does not make their move within 20 seconds, the opponent is awarded the victory by default.
 
-If a player wins, the game ends and the outcome is printed on the player's screen. If you intend to play in automatic game mode, it is important to remember to start the client as follows: `./F4Client *` and not just `./F4Client *`, as if you launch it with just the asterisk character, it will be interpreted as a shell glob and replaced with a list of all files in the current directory.
+If a player wins, the game ends and the outcome is printed on the player's screen. If you intend to play in automatic game mode, it is important to remember to start the client as follows: `./F4Client \*` and not just `./F4Client *`, as if you launch it with just the asterisk character, it will be interpreted as a shell glob and replaced with a list of all files in the current directory.
 
 ## Useful Commands
 
